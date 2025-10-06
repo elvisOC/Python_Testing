@@ -38,11 +38,19 @@ def showSummary():
 
 
 @app.route('/book/<competition>/<club>')
-def book(competition,club):
+def book(competition, club):
     foundClub = [c for c in clubs if c['name'] == club][0]
     foundCompetition = [c for c in competitions if c['name'] == competition][0]
+
     if foundClub and foundCompetition:
-        return render_template('booking.html',club=foundClub,competition=foundCompetition)
+        comp_name = foundCompetition["name"]
+        if comp_name not in foundClub:
+            max_places = 12
+        else:
+            max_places = 12 - int(foundClub[comp_name])
+        return render_template('booking.html', club=foundClub,
+                               competition=foundCompetition,
+                               max_places=max_places)
     else:
         flash("Something went wrong-please try again")
         return render_template('welcome.html', club=club, competitions=competitions)
@@ -53,6 +61,11 @@ def purchasePlaces():
     competition = [c for c in competitions if c['name'] == request.form['competition']][0]
     club = [c for c in clubs if c['name'] == request.form['club']][0]
     placesRequired = int(request.form['places'])
+
+    if placesRequired > int(club['points']):
+        error = "Vous n'avez pas assez de points pour réserver autant de places"
+        return render_template("booking.html", club=club, competition=competition, error=error), 400
+        
     competition['numberOfPlaces'] = int(competition['numberOfPlaces'])-placesRequired
     flash('Great-booking complete!')
     return render_template('welcome.html', club=club, competitions=competitions)
