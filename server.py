@@ -14,6 +14,13 @@ def loadCompetitions():
          listOfCompetitions = json.load(comps)['competitions']
          return listOfCompetitions
 
+def saveClubs(listOfClubs):
+    with open('clubs.json', 'w', encoding='utf-8') as c:
+        json.dump({"clubs": listOfClubs}, c, indent=4, ensure_ascii=False)
+
+def saveCompetitions(listOfCompetitions):
+    with open('competitions.json', 'w', encoding='utf-8') as comps:
+        json.dump({"competitions": listOfCompetitions}, comps, indent=4, ensure_ascii=False)
 
 app = Flask(__name__)
 app.secret_key = 'something_special'
@@ -95,6 +102,9 @@ def purchasePlaces():
         return render_template("booking.html", club=club, competition=competition, error=error), 400
 
     competition['numberOfPlaces'] = int(competition['numberOfPlaces'])-placesRequired
+
+    saveClubs(clubs)
+    saveCompetitions(competitions)
     flash('Great-booking complete!')
     return render_template('welcome.html', club=club, competitions=competitions)
 
