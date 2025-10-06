@@ -1,9 +1,7 @@
 import pytest
 from server import showSummary, clubs, competitions, purchasePlaces
 from flask import Flask
-from flask import Flask
-from server import showSummary, purchasePlaces
-
+from datetime import datetime, timedelta
 
 def fake_render_template(template_name, **context):
     return f"{template_name} - {context}"
@@ -65,6 +63,7 @@ def test_purchasePlaces_valid_booking(setup_club_comp):
         assert "welcome.html" in response
         assert int(competitions[0]["numberOfPlaces"]) == 15
 
+
 @pytest.fixture
 def mock_templates(monkeypatch):
     def fake_render_template(template_name, **context):
@@ -105,3 +104,36 @@ def test_purchasePlaces_already_booked_too_many(client, mock_templates):
         response, status = purchasePlaces()
         assert status == 400
         assert "12 places" in response
+
+def test_purchase_places_in_past_competition_returns_400(client, monkeypatch, mock_templates):
+    c, clubs, competitions = client
+    competitions[0]["date"] = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+
+    app = Flask(__name__)
+    app.secret_key = "test_secret"
+
+    with app.test_request_context(method="POST", data={
+                                                    "club": clubs[0]["name"],
+                                                    "competition": competitions[0]["name"],
+                                                    "places": "3",
+                                                }):
+        response, status = purchasePlaces()
+        assert status == 400
+        assert "terminée" in response
+
+
+def test_purchase_places_in_future_competition(client, monkeypatch, mock_templates):
+    c, clubs, competitions = client
+    competitions[0]["date"] = (datetime.now() + timedelta(days=10)).strftime("%Y-%m-%d %H:%M:%S")
+
+    app = Flask(__name__)
+    app.secret_key = "test_secret"
+
+    with app.test_request_context(method="POST", data={
+                                                    "club": clubs[0]["name"],
+                                                    "competition": competitions[0]["name"],
+                                                    "places": "5",
+                                                }):
+        response = purchasePlaces()
+        assert "welcome.html" in response
+        assert int(competitions[0]["numberOfPlaces"]) == 15

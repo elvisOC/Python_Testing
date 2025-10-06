@@ -1,5 +1,6 @@
 import json
 from flask import Flask,render_template,request,redirect,flash,url_for
+from datetime import datetime
 
 
 def loadClubs():
@@ -19,6 +20,18 @@ app.secret_key = 'something_special'
 
 competitions = loadCompetitions()
 clubs = loadClubs()
+
+
+@app.template_filter("is_past")
+def is_past_filter(value, fmt="%Y-%m-%d %H:%M:%S"):
+    if isinstance(value, datetime):
+        date_value = value
+    else:
+        try:
+            date_value = datetime.strptime(value, fmt)
+        except Exception:
+            return False
+    return date_value < datetime.now()
 
 @app.route('/')
 def index():
@@ -75,6 +88,11 @@ def purchasePlaces():
         if placesRequired + already_booking > 12:
             error = 'Vous ne pouvez pas réserver plus de 12 places par compétition'
             return render_template("booking.html", club=club, competition=competition, error=error), 400
+            
+    comp_date = datetime.strptime(competition["date"], "%Y-%m-%d %H:%M:%S")
+    if comp_date < datetime.now():
+        error = "Il est impossible de réserver des places dans une compétition terminée"
+        return render_template("booking.html", club=club, competition=competition, error=error), 400
 
     competition['numberOfPlaces'] = int(competition['numberOfPlaces'])-placesRequired
     flash('Great-booking complete!')

@@ -1,4 +1,5 @@
 import html
+from datetime import datetime, timedelta
 
 def test_full_login_flow_with_unknown_email(client):
     c, _, _ = client
@@ -13,6 +14,12 @@ def test_full_login_flow_with_unknown_email(client):
 
 def test_full_login_flow_with_valid_email(client):
     c, clubs_list, _ = client
+
+
+
+def test_full_flow_with_past_competition(client):
+    c, clubs, competitions = client
+    competitions[0]["date"] = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
 
     response_index = c.get("/")
     assert response_index.status_code == 200
@@ -57,3 +64,15 @@ def test_full_booking_flow_more_than_12_places_fails(client):
     assert response_booking.status_code == 400
     decoded = html.unescape(response_booking.get_data(as_text=True))
     assert "12 places" in decoded
+    response_login = c.post("/showSummary", data={"email": clubs[0]["email"]})
+    assert response_login.status_code == 200
+
+    data = {
+        "club": clubs[0]["name"],
+        "competition": competitions[0]["name"],
+        "places": "2",
+    }
+    response_booking = c.post("/purchasePlaces", data=data)
+    decoded = html.unescape(response_booking.get_data(as_text=True))
+    assert response_booking.status_code == 400
+    assert "terminée" in decoded
