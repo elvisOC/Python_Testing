@@ -1,6 +1,6 @@
-<<<<<<< HEAD
 import html
 from datetime import datetime, timedelta
+import json
 
 def test_full_login_flow_with_unknown_email(client):
     c, _, _ = client
@@ -107,3 +107,14 @@ def test_full_booking_flow_with_save(monkeypatch, client):
     assert "competitions" in saved_data
     assert saved_data["competitions"][0]["numberOfPlaces"] == original_places - 5
 
+def test_overbooking_flow(client):
+    c, clubs, competitions = client
+
+    response_overbook = c.post("/purchasePlaces", data={
+        "club": clubs[0]["name"],
+        "competition": competitions[0]["name"],
+        "places": "30"
+    })
+    assert response_overbook.status_code == 400
+    decoded = response_overbook.get_data(as_text=True)
+    assert "Le nombre de places de la compétition ne peut pas être inférieur à zéro" in decoded
