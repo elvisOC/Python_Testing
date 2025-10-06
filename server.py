@@ -99,7 +99,7 @@ def purchasePlaces():
     comp_date = datetime.strptime(competition["date"], "%Y-%m-%d %H:%M:%S")
     if comp_date < datetime.now():
         error = "Il est impossible de réserver des places dans une compétition terminée"
-        
+
     nbrPlaces = int(competition["numberOfPlaces"]) - placesRequired
     if nbrPlaces < 0:
         error = "Le nombre de places de la compétition ne peut pas être inférieur à zéro"
@@ -113,7 +113,10 @@ def purchasePlaces():
     return render_template('welcome.html', club=club, competitions=competitions)
 
 
-# TODO: Add route for points display
+# Tableau des clubs et points
+@app.route("/club_table")
+def club_table():
+    return render_template("/club_table.html", clubs=clubs, competitions=competitions)
 
 
 @app.route('/logout')

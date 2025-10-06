@@ -178,6 +178,7 @@ def test_saveCompetitions_writes_correct_json(monkeypatch):
     data = json.loads(buffer.getvalue())
     assert "competitions" in data
     assert data["competitions"][0]["numberOfPlaces"] == "20"
+from server import club_table, clubs, competitions
 
 def fake_render_template(template_name, **context):
     return {"template": template_name, "context": context}
@@ -201,3 +202,11 @@ def test_purchase_too_many_places_returns_error(setup_env):
         response, status = purchasePlaces()
         assert status == 400
         assert "Le nombre de places de la compétition ne peut pas être inférieur à zéro" in response["context"]["error"]
+def test_club_table_unit(monkeypatch):
+    monkeypatch.setattr("server.render_template", fake_render_template)
+    
+    response = club_table()
+    
+    assert response["template"] == "/club_table.html"
+    assert response["context"]["clubs"] == clubs
+    assert response["context"]["competitions"] == competitions

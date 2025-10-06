@@ -114,3 +114,17 @@ def test_purchasePlaces_overbook(client):
     assert response.status_code == 400
     decoded = response.get_data(as_text=True)
     assert "Le nombre de places de la compétition ne peut pas être inférieur à zéro" in decoded
+
+def test_club_table_page(client):
+    c, clubs, competitions = client
+    response = c.get("/club_table")
+    
+    assert response.status_code == 200
+    
+    html_content = response.get_data(as_text=True)
+    
+    for club in clubs:
+        assert club["name"] in html_content
+    
+    for comp in competitions:
+        assert comp["name"] in html_content
