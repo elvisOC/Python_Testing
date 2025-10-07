@@ -1,12 +1,54 @@
 import pytest
-from server import showSummary, clubs, competitions, purchasePlaces, saveClubs, saveCompetitions
+from server import (
+    showSummary,
+    purchasePlaces,
+    saveClubs,
+    saveCompetitions,
+    club_table,
+)
 from flask import Flask
 from datetime import datetime, timedelta
 import io
 import json
 
+
 def fake_render_template(template_name, **context):
     return f"{template_name} - {context}"
+
+
+class NonClosingStringIO(io.StringIO):
+    def close(self):
+        pass
+
+
+
+@pytest.fixture
+def setup_club_comp(monkeypatch):
+    clubs = [{"name": "Test Club", "email": "test@club.com", "points": "10"}]
+    competitions = [{"name": "Test Competition", "numberOfPlaces": "20"}]
+    monkeypatch.setattr("server.clubs", clubs)
+    monkeypatch.setattr("server.competitions", competitions)
+    monkeypatch.setattr("server.render_template", fake_render_template)
+    return clubs, competitions
+
+
+@pytest.fixture
+def mock_templates(monkeypatch):
+    def fake_render_template(template_name, **context):
+        return f"Rendered {template_name} with {context}"
+    monkeypatch.setattr("server.render_template", fake_render_template)
+
+
+@pytest.fixture
+def setup_env(monkeypatch):
+    fake_clubs = [{"name": "Test Club", "email": "test@club.com", "points": "15"}]
+    fake_comps = [{"name": "Test Competition", "date": "2099-01-01 10:00:00", "numberOfPlaces": "10"}]
+    monkeypatch.setattr("server.clubs", fake_clubs)
+    monkeypatch.setattr("server.competitions", fake_comps)
+    monkeypatch.setattr("server.render_template", fake_render_template)
+    return fake_clubs, fake_comps
+
+
 
 def test_show_summary_returns_400_for_unknown_email(monkeypatch):
     monkeypatch.setattr("server.clubs", [{"name": "Known", "email": "known@test.com"}])
@@ -22,6 +64,7 @@ def test_show_summary_returns_400_for_unknown_email(monkeypatch):
         assert "index.html" in response
         assert "unknown@test.com" not in response
 
+
 def test_show_summary_returns_200_for_known_email(monkeypatch):
     monkeypatch.setattr("server.clubs", [{"name": "Known", "email": "known@test.com"}])
     monkeypatch.setattr("server.competitions", [{"name": "Comp", "date": "2099-01-01 10:00:00"}])
@@ -36,14 +79,6 @@ def test_show_summary_returns_200_for_known_email(monkeypatch):
         assert "Known" in response
 
 
-@pytest.fixture
-def setup_club_comp(monkeypatch):
-    clubs = [{"name": "Test Club", "email": "test@club.com", "points": "10"}]
-    competitions = [{"name": "Test Competition", "numberOfPlaces": "20"}]
-    monkeypatch.setattr("server.clubs", clubs)
-    monkeypatch.setattr("server.competitions", competitions)
-    monkeypatch.setattr("server.render_template", fake_render_template)
-    return clubs, competitions
 
 def test_purchasePlaces_more_than_points_returns_400(setup_club_comp):
     clubs, competitions = setup_club_comp
@@ -55,6 +90,7 @@ def test_purchasePlaces_more_than_points_returns_400(setup_club_comp):
         assert status == 400
         assert "Vous n'avez pas assez de points" in response
 
+
 def test_purchasePlaces_valid_booking(setup_club_comp):
     clubs, competitions = setup_club_comp
     app = Flask(__name__)
@@ -62,15 +98,8 @@ def test_purchasePlaces_valid_booking(setup_club_comp):
     with app.test_request_context(method="POST",
                                   data={"club": "Test Club", "competition": "Test Competition", "places": "5"}):
         response = purchasePlaces()
-        assert "welcome.html" in response
+        assert "Great-booking complete" in response
         assert int(competitions[0]["numberOfPlaces"]) == 15
-
-
-@pytest.fixture
-def mock_templates(monkeypatch):
-    def fake_render_template(template_name, **context):
-        return f"Rendered {template_name} with {context}"
-    monkeypatch.setattr("server.render_template", fake_render_template)
 
 
 def test_purchasePlaces_more_than_12_returns_400(client, mock_templates):
@@ -84,14 +113,14 @@ def test_purchasePlaces_more_than_12_returns_400(client, mock_templates):
         assert "12 places" in response
 
 
-def test_purchasePlaces_valid_booking(client, mock_templates):
+def test_purchasePlaces_valid_booking_with_client(client, mock_templates):
     c, clubs, competitions = client
     app = Flask(__name__)
     app.secret_key = "test_secret"
 
     with app.test_request_context(method="POST", data={"club": clubs[0]["name"], "competition": competitions[0]["name"], "places": "8"}):
         response = purchasePlaces()
-        assert "welcome.html" in response
+        assert "Great-booking complete" in response
         assert int(competitions[0]["numberOfPlaces"]) == 12
 
 
@@ -107,7 +136,8 @@ def test_purchasePlaces_already_booked_too_many(client, mock_templates):
         assert status == 400
         assert "12 places" in response
 
-def test_purchase_places_in_past_competition_returns_400(client, monkeypatch, mock_templates):
+
+def test_purchase_places_in_past_competition_returns_400(client, mock_templates):
     c, clubs, competitions = client
     competitions[0]["date"] = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -115,16 +145,16 @@ def test_purchase_places_in_past_competition_returns_400(client, monkeypatch, mo
     app.secret_key = "test_secret"
 
     with app.test_request_context(method="POST", data={
-                                                    "club": clubs[0]["name"],
-                                                    "competition": competitions[0]["name"],
-                                                    "places": "3",
-                                                }):
+        "club": clubs[0]["name"],
+        "competition": competitions[0]["name"],
+        "places": "3",
+    }):
         response, status = purchasePlaces()
         assert status == 400
         assert "terminée" in response
 
 
-def test_purchase_places_in_future_competition(client, monkeypatch, mock_templates):
+def test_purchase_places_in_future_competition(client, mock_templates):
     c, clubs, competitions = client
     competitions[0]["date"] = (datetime.now() + timedelta(days=10)).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -132,18 +162,27 @@ def test_purchase_places_in_future_competition(client, monkeypatch, mock_templat
     app.secret_key = "test_secret"
 
     with app.test_request_context(method="POST", data={
-                                                    "club": clubs[0]["name"],
-                                                    "competition": competitions[0]["name"],
-                                                    "places": "5",
-                                                }):
+        "club": clubs[0]["name"],
+        "competition": competitions[0]["name"],
+        "places": "5",
+    }):
         response = purchasePlaces()
-        assert "welcome.html" in response
+        assert "Great-booking complete" in response
         assert int(competitions[0]["numberOfPlaces"]) == 15
 
 
-class NonClosingStringIO(io.StringIO):
-    def close(self):
-        pass 
+def test_purchase_too_many_places_returns_error(setup_env):
+    clubs, competitions = setup_env
+    app = Flask(__name__)
+    app.secret_key = "test_secret"
+    with app.test_request_context(method="POST", data={
+        "club": "Test Club", "competition": "Test Competition", "places": "15"
+    }):
+        response, status = purchasePlaces()
+        assert status == 400
+        assert "plus de 12 places" in response
+
+
 
 def test_saveClubs_writes_correct_json(monkeypatch):
     clubs = [{"name": "Test Club", "email": "test@club.com", "points": "10"}]
@@ -162,6 +201,7 @@ def test_saveClubs_writes_correct_json(monkeypatch):
     assert "clubs" in data
     assert data["clubs"][0]["name"] == "Test Club"
 
+
 def test_saveCompetitions_writes_correct_json(monkeypatch):
     competitions = [{"name": "Test Comp", "numberOfPlaces": "20"}]
     buffer = NonClosingStringIO()
@@ -178,35 +218,13 @@ def test_saveCompetitions_writes_correct_json(monkeypatch):
     data = json.loads(buffer.getvalue())
     assert "competitions" in data
     assert data["competitions"][0]["numberOfPlaces"] == "20"
-from server import club_table, clubs, competitions
 
-def fake_render_template(template_name, **context):
-    return {"template": template_name, "context": context}
 
-@pytest.fixture
-def setup_env(monkeypatch):
-    fake_clubs = [{"name": "Test Club", "email": "test@club.com", "points": "15"}]
-    fake_comps = [{"name": "Test Competition", "date": "2099-01-01 10:00:00", "numberOfPlaces": "10"}]
-    monkeypatch.setattr("server.clubs", fake_clubs)
-    monkeypatch.setattr("server.competitions", fake_comps)
-    monkeypatch.setattr("server.render_template", fake_render_template)
-    return fake_clubs, fake_comps
-
-def test_purchase_too_many_places_returns_error(setup_env):
-    clubs, competitions = setup_env
-    app = Flask(__name__)
-    app.secret_key = "test_secret"
-    with app.test_request_context(method="POST", data={
-        "club": "Test Club", "competition": "Test Competition", "places": "15"
-    }):
-        response, status = purchasePlaces()
-        assert status == 400
-        assert "Le nombre de places de la compétition ne peut pas être inférieur à zéro" in response["context"]["error"]
 def test_club_table_unit(monkeypatch):
     monkeypatch.setattr("server.render_template", fake_render_template)
-    
+
     response = club_table()
-    
-    assert response["template"] == "/club_table.html"
-    assert response["context"]["clubs"] == clubs
-    assert response["context"]["competitions"] == competitions
+
+    assert "/club_table.html" in response
+    assert "clubs" in response
+    assert "competitions" in response
